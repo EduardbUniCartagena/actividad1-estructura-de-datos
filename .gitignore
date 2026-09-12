@@ -1,0 +1,9 @@
+﻿git add ..idea/
+*.iml
+out/
+target/
+build/
+.classpath
+.project
+.settings/
+*.class
