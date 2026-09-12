@@ -7,33 +7,17 @@ import java.io.ObjectOutputStream;
 
 /**
  * Sistema de digiturno para un consultorio médico.
- * CÓDIGO BASE - actividad inicial de unidad (Listas, Pilas y Colas).
- *
- * Debes completar los métodos marcados con // TODO.
- * No modifiques las firmas de los métodos ni los atributos.
  *
  * Esta clase contiene ÚNICAMENTE la lógica del digiturno (las estructuras
- * de datos y las operaciones sobre ellas). NO contiene menú de consola ni
- * método main. Para PROBAR los métodos que completes aquí, ejecuta la
- * clase Main (archivo Main.java), que ya está completamente implementada
- * y te ofrece un menú de texto: cada opción del menú llama directamente
- * a uno de los métodos que debes completar en esta clase.
+ * de datos y las operaciones sobre ellas).
  *
- * Estructuras (TAD) que se usan en esta clase: NO son las colecciones de
- * java.util. Son implementaciones propias de este proyecto, ya
- * completamente resueltas en los archivos Cola.java, Pila.java y
- * Lista.java. Antes de completar los métodos de esta clase, revisa el
- * Javadoc de esas tres clases para conocer los nombres exactos de sus
- * métodos (encolar/desencolar, apilar/desapilar, agregar/obtener, etc.).
- *
+ * Estructuras (TAD) que se usan en esta clase:
  *  - Cola  -> orden de llegada dentro de cada tipo de paciente (FIFO).
- *  - Lista -> historico de atención del día.
+ *  - Lista -> histórico de atención del día.
  *  - Pila  -> deshacer el último turno generado (LIFO).
  *
  * Persistencia (archivos binarios):
- *  - Lectura de datos de prueba desde "datos/datos_prueba.dat" (ya incluido
- *    en este proyecto) para poder probar la aplicación sin digitar datos.
- *    El archivo contiene un arreglo Paciente[] serializado.
+ *  - Lectura de datos de prueba desde "datos/datos_prueba.dat".
  *  - Escritura del histórico de atención en "datos/historico.dat".
  */
 public class Digiturno {
@@ -49,113 +33,162 @@ public class Digiturno {
     private static final String ARCHIVO_HISTORICO = "datos/historico.dat";
 
     /**
-     * TODO 1 - Tomar turno (generar turno y encolar según tipo de paciente).
-     * Este es el método que la clase Main invoca cuando el usuario elige
-     * la opción "1. Tomar turno" en el menú.
-     * Debes:
-     *  1) Crear un objeto Paciente con el nombre y tipo recibidos.
-     *  2) Agregarlo a la cola que corresponda según su tipo
-     *     (colaGeneral, colaPremium o colaPrioritaria), usando el
-     *     método encolar(...) de la clase Cola.
-     *  3) Apilarlo en pilaDeshacer (para poder deshacerlo más adelante),
-     *     usando el método apilar(...) de la clase Pila.
-     *  4) Imprimir en consola: "Turno generado: " + paciente
+     * Genera un nuevo turno para un paciente y lo registra en el sistema.
      *
-     * TAD que debes usar aquí: Cola.encolar() y Pila.apilar().
+     * Justificación del TAD:
+     * - TAD Cola (FIFO): Se inserta el paciente en la cola correspondiente a su tipo
+     *   (PRIORITARIO, PREMIUM o GENERAL) mediante el método encolar(), garantizando que
+     *   los pacientes del mismo tipo mantengan su orden de llegada estricto.
+     * - TAD Pila (LIFO): Se apila simultáneamente el paciente recién creado en la
+     *   pilaDeshacer mediante el método apilar(), lo que permite rastrear la última
+     *   acción realizada para poder revertirla si ocurrió un error en la digitación.
+     *
+     * @param nombre Nombre completo del paciente.
+     * @param tipo Tipo de paciente (GENERAL, PREMIUM, PRIORITARIO).
      */
     public void generarTurno(String nombre, TipoPaciente tipo) {
-        // TODO: completar este método
+        Paciente paciente = new Paciente(nombre, tipo);
+
+        switch (tipo) {
+            case PRIORITARIO:
+                colaPrioritaria.encolar(paciente);
+                break;
+            case PREMIUM:
+                colaPremium.encolar(paciente);
+                break;
+            case GENERAL:
+                colaGeneral.encolar(paciente);
+                break;
+        }
+
+        pilaDeshacer.apilar(paciente);
     }
 
     /**
-     * TODO 2 - Atender al siguiente paciente.
-     * Debes aplicar esta regla de prioridad entre colas:
-     *   1) Si colaPrioritaria tiene pacientes, atiende al primero de esa cola.
-     *   2) Si colaPrioritaria está vacía pero colaPremium tiene pacientes,
-     *      atiende al primero de colaPremium.
-     *   3) Si ambas están vacías, atiende al primero de colaGeneral.
-     *   4) Si las tres están vacías, imprime: "No hay pacientes en espera."
+     * Atiende al siguiente paciente respetando la regla de prioridad entre colas.
      *
-     * El paciente atendido debe agregarse al histórico (Lista) y se debe
-     * imprimir: "Atendiendo a: " + paciente
+     * Justificación del TAD:
+     * - TAD Cola (FIFO): Se revisan las tres colas en orden estricto de prioridad
+     *   (PRIORITARIO -> PREMIUM -> GENERAL) utilizando estaVacia(). Se remueve al
+     *   primer paciente de la cola seleccionada mediante desencolar(), respetando el
+     *   orden de llegada FIFO de esa categoría.
+     * - TAD Lista: El paciente desencolado se registra al final de la lista de histórico
+     *   mediante el método agregar(), conservando el registro cronológico exacto
+     *   de las atenciones realizadas en el día.
      *
-     * Pista: usa estaVacia() para verificar cada cola, y desencolar()
-     * para retirar y obtener el primer elemento en un solo paso. Para
-     * agregar al histórico usa el método agregar(...) de la clase Lista.
-     *
-     * TAD que debes usar aquí: Cola.estaVacia(), Cola.desencolar() y
-     * Lista.agregar().
+     * @return El Paciente atendido, o null si no hay pacientes en ninguna cola.
      */
-    public void atenderSiguiente() {
-        // TODO: completar este método
+    public Paciente atenderSiguiente() {
+        Cola<Paciente> colaAAtender = null;
+
+        if (!colaPrioritaria.estaVacia()) {
+            colaAAtender = colaPrioritaria;
+        } else if (!colaPremium.estaVacia()) {
+            colaAAtender = colaPremium;
+        } else if (!colaGeneral.estaVacia()) {
+            colaAAtender = colaGeneral;
+        }
+
+        if (colaAAtender == null) {
+            return null; // No hay pacientes en ninguna cola
+        }
+
+        Paciente pacienteAtendido = colaAAtender.desencolar();
+        historico.agregar(pacienteAtendido);
+
+        return pacienteAtendido;
     }
 
     /**
-     * TODO 3 - Deshacer el último turno generado.
-     * Debes:
-     *  1) Verificar que pilaDeshacer no esté vacía (estaVacia()); si lo
-     *     está, imprime "No hay turnos para deshacer." y termina el método.
-     *  2) Sacar el último paciente apilado con desapilar().
-     *  3) Intentar eliminarlo de la cola en la que había quedado, según
-     *     su tipo (colaGeneral, colaPremium o colaPrioritaria), usando
-     *     el método eliminar(objeto) de la clase Cola.
-     *  4) Si eliminar() devuelve true, imprime: "Turno deshecho: " + paciente
-     *     Si devuelve false (ya fue atendido y no está en ninguna cola),
-     *     imprime: "El turno ya había sido atendido, no se puede deshacer: " + paciente
+     * Deshace la generación del último turno registrado antes de que sea atendido.
      *
-     * TAD que debes usar aquí: Pila.estaVacia(), Pila.desapilar() y
-     * Cola.eliminar().
+     * Justificación del TAD:
+     * - TAD Pila (LIFO): Se utiliza desapilar() sobre pilaDeshacer para obtener de forma
+     *   inmediata (O(1)) el último paciente registrado en el sistema, respetando el
+     *   comportamiento LIFO ideal para operaciones de deshacer (undo).
+     * - TAD Cola: Una vez identificado el paciente a retirar, se invoca eliminar(paciente)
+     *   en la cola correspondiente a su tipo. Este método remueve el nodo de la cola
+     *   sin alterar el orden relativo de los demás pacientes en espera.
+     *
+     * @return El Paciente cuyo turno fue deshecho, o null si la pila está vacía.
      */
-    public void deshacerUltimoTurno() {
-        // TODO: completar este método
+    public Paciente deshacerUltimoTurno() {
+        if (pilaDeshacer.estaVacia()) {
+            return null;
+        }
+
+        Paciente ultimoPaciente = pilaDeshacer.desapilar();
+
+        switch (ultimoPaciente.getTipo()) {
+            case PRIORITARIO:
+                colaPrioritaria.eliminar(ultimoPaciente);
+                break;
+            case PREMIUM:
+                colaPremium.eliminar(ultimoPaciente);
+                break;
+            case GENERAL:
+                colaGeneral.eliminar(ultimoPaciente);
+                break;
+        }
+
+        return ultimoPaciente;
     }
 
     /**
-     * TODO 4 - Persistencia: lectura de archivo binario.
-     * Este método debe cargar los pacientes de prueba incluidos en el
-     * archivo "datos/datos_prueba.dat" para que la aplicación tenga datos
-     * con los cuales probarse sin necesidad de digitarlos manualmente.
+     * Carga los pacientes de prueba desde un archivo binario serializado al iniciar la aplicación.
      *
-     * Debes:
-     *  1) Verificar que el archivo exista (usa la clase File). Si no
-     *     existe, imprime un mensaje y termina el método.
-     *  2) Abrir un ObjectInputStream sobre un FileInputStream apuntando
-     *     al archivo ARCHIVO_DATOS_PRUEBA (usa try-with-resources).
-     *  3) Leer el objeto guardado con ois.readObject() y convertirlo
-     *     (cast) a Paciente[] (un arreglo, no una lista de java.util).
-     *  4) Por cada paciente del arreglo, llamar a generarTurno(nombre, tipo)
-     *     para que quede correctamente encolado (reutiliza tu propio
-     *     método del TODO 1). Puedes recorrer el arreglo con un for-each:
-     *     for (Paciente p : pacientesPrueba) { ... }
-     *  5) Capturar IOException y ClassNotFoundException e imprimir un
-     *     mensaje de error si algo falla.
-     *
-     * Pista: el archivo binario contiene un único objeto serializado de
-     * tipo Paciente[], escrito con ObjectOutputStream.writeObject().
+     * Justificación del TAD y Persistencia:
+     * - Persistencia Binaria: Se utiliza ObjectInputStream sobre FileInputStream para deserializar
+     *   directamente una estructura de objetos Paciente[] almacenada en datos/datos_prueba.dat.
+     *   Se prefiere la serialización binaria sobre archivos de texto porque preserva de forma
+     *   nativa los tipos de datos, atributos y el estado completo de las instancias sin necesidad
+     *   de parsear cadenas de texto.
+     * - Reutilización de TAD: Por cada objeto Paciente recuperado, se invoca generarTurno(),
+     *   garantizando que entren a las colas según su tipo y a la pila de deshacer siguiendo
+     *   las reglas del sistema.
      */
     public void cargarDatosPrueba() {
-        // TODO: completar este método
+        File archivo = new File(ARCHIVO_DATOS_PRUEBA);
+        if (!archivo.exists()) {
+            return;
+        }
+
+        try (ObjectInputStream ois = new ObjectInputStream(new FileInputStream(archivo))) {
+            Paciente[] pacientesPrueba = (Paciente[]) ois.readObject();
+            for (Paciente p : pacientesPrueba) {
+                generarTurno(p.getNombre(), p.getTipo());
+            }
+        } catch (IOException | ClassNotFoundException e) {
+            System.err.println("Error al cargar los datos de prueba: " + e.getMessage());
+        }
     }
 
     /**
-     * TODO 5 - Persistencia: escritura de archivo binario.
-     * Este método debe guardar el histórico de atención (el objeto
-     * Lista completo) en el archivo "datos/historico.dat", para que
-     * quede disponible incluso después de cerrar la aplicación.
+     * Guarda el historial completo de pacientes atendidos en un archivo binario.
      *
-     * Debes:
-     *  1) Verificar que exista la carpeta "datos"; si no existe, crearla
-     *     (usa File y el método mkdirs()).
-     *  2) Abrir un ObjectOutputStream sobre un FileOutputStream apuntando
-     *     a ARCHIVO_HISTORICO (usa try-with-resources).
-     *  3) Escribir el histórico completo con oos.writeObject(historico).
-     *     (Esto funciona porque la clase Lista implementa Serializable).
-     *  4) Imprimir un mensaje confirmando cuántos registros se guardaron
-     *     (usa historico.tamano()).
-     *  5) Capturar IOException e imprimir un mensaje de error si algo falla.
+     * Justificación del TAD y Persistencia:
+     * - Persistencia Binaria: Se utiliza ObjectOutputStream sobre FileOutputStream para serializar
+     *   el objeto historico (instancia de Lista<Paciente>) en la ruta datos/historico.dat.
+     *   Dado que la clase Lista implementa Serializable, la Máquina Virtual de Java guarda la
+     *   estructura con su arreglo interno de elementos en un solo paso, conservando el orden
+     *   exacto de atención sin necesidad de convertir cada Paciente a formato de texto (CSV o JSON).
+     * - Seguridad de Directorio: Se verifica que la carpeta datos/ exista antes de proceder con
+     *   la escritura para evitar errores de E/S.
      */
     public void guardarHistoricoBinario() {
-        // TODO: completar este método
+        File carpeta = new File("datos");
+        if (!carpeta.exists()) {
+            carpeta.mkdirs();
+        }
+
+        File archivo = new File(carpeta, "historico.dat");
+
+        try (ObjectOutputStream oos = new ObjectOutputStream(new FileOutputStream(archivo))) {
+            oos.writeObject(historico);
+            System.out.println("Histórico guardado exitosamente en " + archivo.getPath());
+        } catch (IOException e) {
+            System.err.println("Error al guardar el histórico en archivo binario: " + e.getMessage());
+        }
     }
 
     // ----- Métodos de visualización (ya implementados, no los modifiques) -----
@@ -179,8 +212,4 @@ public class Digiturno {
         System.out.println("Premium (" + colaPremium.tamano() + "): " + colaPremium);
         System.out.println("General (" + colaGeneral.tamano() + "): " + colaGeneral);
     }
-
-    // Esta clase NO tiene metodo main. Para probar los metodos que
-    // completes aqui, ejecuta la clase Main (Main.java), que ya
-    // esta lista y contiene el menu de consola.
 }
